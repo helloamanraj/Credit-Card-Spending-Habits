@@ -134,20 +134,29 @@ order by percentage_contribution desc;
 
 -- 7- Which card and expense type combination saw highest month over month growth in Jan-2014
 
-with cte as
-(select card_type,exp_type, year(transaction_date) as yt,month(transaction_date) as mt,sum(amount) as total_spend
-from cc_trans
-group by card_type,exp_type, year(transaction_date),month(transaction_date)
-order by card_type,exp_type, year(transaction_date),month(transaction_date))
 
-select *,(total_spend-prev_month_spent)/prev_month_spent*100 as mom_growth
-from (
-select *,
-lag(total_spend) over(partition by card_type,exp_type order by yt,mt) as prev_month_spent
-from cte) A
-where prev_month_spent is not null and yt=2014 and mt=1
-order by mom_growth desc
-limit 1;
+WITH cte AS (
+  SELECT
+    card_type,
+    exp_type,
+    YEAR(date) AS yt,
+    MONTH(date) AS mt,
+    SUM(amount) AS total_spend
+  FROM cct
+  WHERE (YEAR(date) = 2014 AND MONTH(date) = 1) OR (YEAR(date) = 2013 AND MONTH(date) = 12) -- Filter for January 2014 and December 2013 data
+  GROUP BY card_type, exp_type, YEAR(date), MONTH(date)
+)
+SELECT
+  card_type,
+  exp_type,
+  SUM(CASE WHEN mt = 1 THEN total_spend ELSE 0 END) AS january_spend,
+  SUM(CASE WHEN mt = 12 THEN total_spend ELSE 0 END) AS december_spend,
+  (SUM(CASE WHEN mt = 1 THEN total_spend ELSE 0 END) - SUM(CASE WHEN mt = 12 THEN total_spend ELSE 0 END)) AS growth,
+ (100*(SUM(CASE WHEN mt = 1 THEN total_spend ELSE 0 END) - SUM(CASE WHEN mt = 12 THEN total_spend ELSE 0 END)) / SUM(CASE WHEN mt = 12 THEN total_spend ELSE 0 END) ) as GrowthMOM
+FROM cte
+GROUP BY card_type, exp_type
+ORDER BY growth DESC
+LIMIT 1;
 
 -- 8- during weekends which city has highest total spend to total no of transcations ratio 
 
